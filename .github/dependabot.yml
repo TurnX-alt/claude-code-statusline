@@ -1,0 +1,21 @@
+version: 2
+
+updates:
+  # Keep Actions on current SHAs (see PowerShell/PowerShell dependabot.yml)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "dependencies"
+    # ponytail: bump to "daily" once noise is acceptable; weekly is the floor.
+    # open-pull-requests-limit omitted -> dependabot default (5) is fine for one repo.
+
+  # Optional: if you ever publish a PowerShell module alongside the script
+  # - package-ecosystem: "nuget"
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"

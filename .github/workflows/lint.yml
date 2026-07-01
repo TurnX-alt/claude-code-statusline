@@ -1,0 +1,63 @@
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for the same PR; keep completed runs for main.
+concurrency:
+  group: lint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  POWERSHELL_TELEMETRY_OPTOUT: 1
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  psscriptanalyzer:
+    name: PSScriptAnalyzer (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install PowerShell 7 (ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https software-properties-common
+          wget -q https://packages.microsoft.com/config/ubuntu/24.04/packages-microsoft-prod.deb
+          sudo dpkg -i packages-microsoft-prod.deb
+          sudo apt-get update
+          sudo apt-get install -y powershell
+          pwsh -NoProfile -Command '$PSVersionTable.PSVersion'
+        shell: bash
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Install-Module PSScriptAnalyzer -Force -SkipPublisherCheck -Scope CurrentUser
+          Import-Module PSScriptAnalyzer
+          Get-Module PSScriptAnalyzer | Format-List Name, Version, Path
+
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $results = Invoke-ScriptAnalyzer -Path . -Recurse -Severity @('Error','Warning') |
+            Sort-Object Severity, RuleName, Line
+          $results | Format-Table Severity, RuleName, Line, Column, Message -AutoSize
+          $errors = $results | Where-Object Severity -eq 'Error'
+          $warnings = $results | Where-Object Severity -eq 'Warning'
+          if ($errors)   { exit 1 }   # fail on errors
+          if ($warnings) { exit 2 }   # ponytail: tighten to exit 1 when you decide warnings must block
