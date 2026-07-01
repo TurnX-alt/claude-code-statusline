@@ -25,11 +25,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        # pin the script name; if yours differs, change in one place
-        script: ['./My-Script.ps1']
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214f5f5447ce83dd # v6.0.2
 
       - name: Install PowerShell 7 (ubuntu)
         if: runner.os == 'Linux'
@@ -43,48 +41,17 @@ jobs:
           pwsh -NoProfile -Command '$PSVersionTable.PSVersion'
         shell: bash
 
+      - name: Install PowerShell 7 (macos)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install --cask powershell
+        shell: bash
+
       - name: Show pwsh version
         shell: pwsh
         run: $PSVersionTable | Format-List
 
-      - name: Run script with mock JSON stdin
-        id: run
+      - name: Run smoke test
         shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $mock = @'
-          {"name":"ci","items":[1,2,3],"flag":true}
-          '@
-          $mock | pwsh -NoProfile -File ${{ matrix.script }}
-          echo "::group::script output"
-        env:
-          # ponytail: pass runtime config via env so the script reads $env:CI, $env:DRY_RUN, etc.
-          CI: 'true'
-          DRY_RUN: 'true'
-
-      - name: Capture output for assertions
-        if: always()
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $mock = @'
-          {"name":"ci","items":[1,2,3],"flag":true}
-          '@
-          $out = $mock | pwsh -NoProfile -File ${{ matrix.script }} 2>&1
-          $out | Out-File -FilePath $env:RUNNER_TEMP/output.txt -Encoding utf8
-          Get-Content $env:RUNNER_TEMP/output.txt
-
-      - name: Assert substrings
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $out = Get-Content $env:RUNNER_TEMP/output.txt -Raw
-          $expected = @('name=ci', 'count=3', 'flag=True')   # ponytail: edit to match your script's output
-          $missing = $expected | Where-Object { $out -notmatch [regex]::Escape($_) }
-          if ($missing) {
-            Write-Host "::error::Missing substrings: $($missing -join ', ')"
-            Write-Host "----- actual output -----"
-            Write-Host $out
-            exit 1
-          }
-          Write-Host "All assertions passed: $($expected -join ', ')"
+        run: ./tests/smoke.ps1

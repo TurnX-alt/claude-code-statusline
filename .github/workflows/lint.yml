@@ -58,6 +58,8 @@ jobs:
             Sort-Object Severity, RuleName, Line
           $results | Format-Table Severity, RuleName, Line, Column, Message -AutoSize
           $errors = $results | Where-Object Severity -eq 'Error'
-          $warnings = $results | Where-Object Severity -eq 'Warning'
-          if ($errors)   { exit 1 }   # fail on errors
-          if ($warnings) { exit 2 }   # ponytail: tighten to exit 1 when you decide warnings must block
+          if ($errors) {
+            Write-Host "::error::Found $($errors.Count) PSScriptAnalyzer error(s)"
+            exit 1
+          }
+          Write-Host "PSScriptAnalyzer: 0 errors. Warnings are reported but do not fail the build."

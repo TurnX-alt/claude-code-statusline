@@ -51,7 +51,6 @@
 $ClaudeDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $HOME ".claude" }
 
 # --- 256-color palette ---
-$Esc = [char]27
 $DIM = "$([char]27)[38;5;245m"
 $RST = "$([char]27)[0m"
 $GRN = "$([char]27)[38;5;108m"
@@ -66,7 +65,8 @@ $ORA = "$([char]27)[38;5;215m"
 $Badge = ""
 $Flag = Join-Path $ClaudeDir ".ponytail-active"
 if (Test-Path $Flag) {
-    try { $Mode = (Get-Content $Flag -ErrorAction Stop | Select-Object -First 1).Trim() } catch { $Mode = "" }
+    try { $Mode = (Get-Content $Flag -ErrorAction Stop | Select-Object -First 1).Trim() }
+    catch { $Mode = "" }   # ponytail: missing/unreadable flag = no badge, never error
     if (-not [string]::IsNullOrEmpty($Mode)) {
         $Tag = if ($Mode -eq "full") { "PONYTAIL" } else { "PONYTAIL:$($Mode.ToUpperInvariant())" }
         $Badge = "$GRN$Tag$RST"
@@ -78,7 +78,8 @@ $EffortBadge = ""
 $EffortLevel = ""
 $EffortFlag = Join-Path $ClaudeDir ".effort-active"
 if (Test-Path $EffortFlag) {
-    try { $EffortLevel = (Get-Content $EffortFlag -ErrorAction Stop | Select-Object -First 1).Trim().ToLowerInvariant() } catch { }
+    try { $EffortLevel = (Get-Content $EffortFlag -ErrorAction Stop | Select-Object -First 1).Trim().ToLowerInvariant() }
+    catch { $EffortLevel = "" }   # ponytail: missing/unreadable flag = fall through to settings.json
 }
 if ([string]::IsNullOrEmpty($EffortLevel)) {
     $SettingsPath = Join-Path $ClaudeDir "settings.json"
@@ -86,7 +87,8 @@ if ([string]::IsNullOrEmpty($EffortLevel)) {
         try {
             $s = Get-Content $SettingsPath -Raw | ConvertFrom-Json -ErrorAction Stop
             if ($s.effortLevel) { $EffortLevel = ([string]$s.effortLevel).Trim().ToLowerInvariant() }
-        } catch { }
+        }
+        catch { $EffortLevel = "" }   # ponytail: malformed settings.json = no effort badge
     }
 }
 if (-not [string]::IsNullOrEmpty($EffortLevel)) {
@@ -109,7 +111,7 @@ if (-not [string]::IsNullOrWhiteSpace($raw)) {
 }
 
 # ponytail: avoid '-f' format strings — PS parses '0.1f' as width/precision/grouping and eats the suffix
-function Format-Tokens([int64]$n) {
+function Format-TokenCount([int64]$n) {
     if ($n -ge 1000000) { return ([math]::Round($n / 1000000.0, 1)).ToString() + 'M' }
     if ($n -ge 1000)    { return ([math]::Round($n / 1000.0, 1)).ToString() + 'k' }
     return "$n"
@@ -125,11 +127,10 @@ function Format-Bar([double]$pct, [int]$Width) {
 }
 
 # --- context window + per-turn usage ---
-$ctxSize = 0; $ctxPct = $null
+$ctxPct = $null
 $ctxIn = 0; $ctxOut = 0; $ctxCacheRead = 0; $ctxCacheCreate = 0
 if ($state -and $state.context_window) {
     $ctx = $state.context_window
-    if ($ctx.context_window_size) { $ctxSize = [int64]$ctx.context_window_size }
     if ($null -ne $ctx.used_percentage) { $ctxPct = [double]$ctx.used_percentage }
     if ($ctx.current_usage) {
         $u = $ctx.current_usage
@@ -145,10 +146,10 @@ if ($state -and $state.cost -and $state.cost.total_cost_usd) { $cost = [double]$
 
 # --- tokens: in (paid fresh) / out (generated) / hit (cache served) / miss (cache written) ---
 $tokParts = @()
-if ($ctxIn -gt 0)          { $tokParts += "${DIM}in${RST} ${BLU}$(Format-Tokens $ctxIn)${RST}" }
-if ($ctxOut -gt 0)         { $tokParts += "${DIM}out${RST} ${MAG}$(Format-Tokens $ctxOut)${RST}" }
-if ($ctxCacheRead -gt 0)   { $tokParts += "${DIM}hit${RST} ${CYN}$(Format-Tokens $ctxCacheRead)${RST}" }
-if ($ctxCacheCreate -gt 0) { $tokParts += "${DIM}miss${RST} ${ORA}$(Format-Tokens $ctxCacheCreate)${RST}" }
+if ($ctxIn -gt 0)          { $tokParts += "${DIM}in${RST} ${BLU}$(Format-TokenCount $ctxIn)${RST}" }
+if ($ctxOut -gt 0)         { $tokParts += "${DIM}out${RST} ${MAG}$(Format-TokenCount $ctxOut)${RST}" }
+if ($ctxCacheRead -gt 0)   { $tokParts += "${DIM}hit${RST} ${CYN}$(Format-TokenCount $ctxCacheRead)${RST}" }
+if ($ctxCacheCreate -gt 0) { $tokParts += "${DIM}miss${RST} ${ORA}$(Format-TokenCount $ctxCacheCreate)${RST}" }
 $tokStr = if ($tokParts.Count -gt 0) { $tokParts -join " ${DIM}|${RST} " } else { "" }
 
 # --- cache hit % (cache_read / (cache_read + cache_creation)) ---

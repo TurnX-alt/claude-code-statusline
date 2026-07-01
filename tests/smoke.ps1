@@ -4,7 +4,7 @@
     and asserts that all expected fragments are present in the rendered output.
 
 .DESCRIPTION
-    Exits 0 on success with "PASS" on stdout; exits 1 with "FAIL: <reason>"
+    Writes "PASS" to stdout on success; writes "FAIL: <reason>" and exits 1
     on the first missing fragment.
 
 .NOTES
@@ -15,7 +15,7 @@
 $ErrorActionPreference = 'Stop'
 $Script = Join-Path $PSScriptRoot '..\statusline.ps1'
 if (-not (Test-Path $Script)) {
-    Write-Host "FAIL: statusline.ps1 not found at $Script"
+    [Console]::Error.WriteLine("FAIL: statusline.ps1 not found at $Script")
     exit 1
 }
 
@@ -40,12 +40,12 @@ $MockJson = @'
 try {
     $output = $MockJson | pwsh -NoProfile -ExecutionPolicy Bypass -File $Script 2>&1
 } catch {
-    Write-Host "FAIL: script threw an exception: $_"
+    [Console]::Error.WriteLine("FAIL: script threw an exception: $_")
     exit 1
 }
 
 if ($null -eq $output -or $output.Count -eq 0) {
-    Write-Host "FAIL: no output from statusline.ps1"
+    [Console]::Error.WriteLine("FAIL: no output from statusline.ps1")
     exit 1
 }
 $text = ($output | Out-String)
@@ -63,12 +63,12 @@ foreach ($frag in $expected) {
 }
 
 if ($missing.Count -gt 0) {
-    Write-Host "FAIL: missing fragments: $($missing -join ', ')"
-    Write-Host "--- output ---"
-    Write-Host $text
-    Write-Host "-------------"
+    [Console]::Error.WriteLine("FAIL: missing fragments: $($missing -join ', ')")
+    [Console]::Error.WriteLine("--- output ---")
+    [Console]::Error.WriteLine($text)
+    [Console]::Error.WriteLine("-------------")
     exit 1
 }
 
-Write-Host "PASS"
+[Console]::WriteLine("PASS")
 exit 0
