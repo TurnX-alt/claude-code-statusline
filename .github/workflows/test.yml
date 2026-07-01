@@ -45,13 +45,24 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew update
-          brew install --cask powershell
+          brew install --cask powershell@preview
         shell: bash
 
       - name: Show pwsh version
         shell: pwsh
         run: $PSVersionTable | Format-List
 
-      - name: Run smoke test
+      - name: Prepare Claude config dir with effort flag
         shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = Join-Path $env:RUNNER_TEMP 'claude-test'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          'max' | Set-Content -Path (Join-Path $dir '.effort-active') -NoNewline
+          "CLAUDE_CONFIG_DIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Run smoke test (default layout, effort badge enabled)
+        shell: pwsh
+        env:
+          SMOKE_EXPECT_EFFORT: 'max'
         run: ./tests/smoke.ps1

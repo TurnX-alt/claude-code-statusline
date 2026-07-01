@@ -55,11 +55,21 @@ $text = ($output | Out-String)
 # get split across "lines" by the test runner.
 $stripped = [regex]::Replace($text, "`e\[[0-9;]*[A-Za-z]", '')
 
-# Each fragment must appear at least once
-$expected = @('in ', 'out ', 'hit ', 'miss ', 'ctx ', 'cache hit', '$', 'EFFORT:')
+# Core fragments must always appear when the fixture supplies the data.
+$expected = @('in ', 'out ', 'hit ', 'miss ', 'ctx ', 'cache hit', '$')
 $missing = @()
 foreach ($frag in $expected) {
     if ($stripped.IndexOf($frag) -lt 0) { $missing += $frag }
+}
+
+# Optional fragments: only assert when the test harness opted in.
+# Set $env:SMOKE_EXPECT_EFFORT = 'max' (or any value) to verify the effort badge path.
+if ($env:SMOKE_EXPECT_EFFORT) {
+    if ($stripped.IndexOf('EFFORT:') -lt 0) { $missing += 'EFFORT:' }
+}
+# Set $env:SMOKE_EXPECT_PONYTAIL = '1' to verify the ponytail badge path.
+if ($env:SMOKE_EXPECT_PONYTAIL) {
+    if ($stripped.IndexOf('PONYTAIL') -lt 0) { $missing += 'PONYTAIL' }
 }
 
 if ($missing.Count -gt 0) {
