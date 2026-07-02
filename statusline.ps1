@@ -104,10 +104,14 @@ if (-not [string]::IsNullOrEmpty($EffortLevel)) {
 }
 
 # --- stdin JSON ---
-$raw = [Console]::In.ReadToEnd()
+# Bind stdin to $raw directly; do NOT pipe through `$raw | ConvertFrom-Json`.
+# Piping a [String] through PowerShell's pipeline echos it to stdout AND splits
+# it into line-shaped tokens, which makes ConvertFrom-Json silently fail when
+# the JSON spans the whole stdin blob. Using -InputObject keeps it as one value.
 $state = $null
+$raw = [Console]::In.ReadToEnd()
 if (-not [string]::IsNullOrWhiteSpace($raw)) {
-    try { $state = $raw | ConvertFrom-Json -ErrorAction Stop } catch { $state = $null }
+    try { $state = ConvertFrom-Json -InputObject $raw -ErrorAction Stop } catch { $state = $null }
 }
 
 # ponytail: avoid '-f' format strings — PS parses '0.1f' as width/precision/grouping and eats the suffix
